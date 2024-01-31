@@ -11,6 +11,13 @@ create table regrouprement(
     operation text 
 );
 
+create table aggregation(
+    idaggregation serial primary key ,
+    mots text ,
+    operation text
+);
+-- sum(%) ,avg(%) , min(%),max(%)
+
 insert into regrouprement  values (default ,'rapport' ,'/');
 
 
