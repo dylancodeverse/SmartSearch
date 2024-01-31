@@ -2,9 +2,9 @@ package sqlbuilder;
 
 import java.lang.reflect.Field;
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class SqlBuilder {
     private String request ;
@@ -15,6 +15,7 @@ public class SqlBuilder {
     String [] splitedHumanRequest ;
     WhereRegex[] whereRegexs ;
     ArrayList<String> colomneForGroupBy ;
+    ArrayList<String> columnKnown ;
 
     /**
      * 1 ere etape : regarder si colomne : * 
@@ -34,9 +35,10 @@ public class SqlBuilder {
         setColumns(humanRequest);        
         // ampiana anle nom de table
         setTable(obj) ;
-        // 
-        setWhere(humanRequest);
-
+        // pour where
+        setWhere(connection ,humanRequest);
+        // pour order by
+        setGroupBy();
 
 
 
@@ -44,22 +46,62 @@ public class SqlBuilder {
 
 
 
-    private void setWhere(String humanRequest) {
-        String where = "WHERE " ;
-        // mijery hoe misy mots cles ana where ve:
-        for (int i = 0; i < whereRegexs.length; i++) {
+    private void setGroupBy() {
+        String g = "group by " ;
 
-            Pattern pattern = Pattern.compile(whereRegexs[i].getRegex());
-            Matcher matcher = pattern.matcher(humanRequest);
-            if (matcher.find()) {
-                
+        if (colomneForGroupBy!=null) {
+            for (int i = 0; i < colomneForGroupBy.size(); i++) {
+                g = g+colomneForGroupBy.get(i)+" ,";
+            }            
+            g = g.substring(0, g.lastIndexOf(" ,"));
+            request = request +" "+ g ;
+        }
+
+    }
+
+
+
+    private void setWhere(Connection  connection ,String humanRequest) throws Exception {
+        String where = " WHERE " ;
+        // mitady hoe aiza no misy mots cles ana where :
+        for (int i = 0; i < splitedHumanRequest.length; i++) {
+            String refCol = null ;
+            WhereRegex whereRegexsTo =null ;
+            for (int j = 0; j < whereRegexs.length; j++) {
+                if (splitedHumanRequest[i].equals(whereRegexs[j].getFirstWord())) {
+                    whereRegexsTo = whereRegexs[j];
+                    // mila alaina ny colomne alohan'iny :
+                    try {
+                        for (int j2 = i-1; j2 >= 0; j2--) {
+                            if (objFieldsName[j].equals(splitedHumanRequest[j2])) {
+                                refCol = objFieldsName[j] ;
+                                break ;
+                            }                            
+                        }
+                        
+                    } catch (Exception e) {
+                        throw new Exception("misy tsy milamina");
+                    }
+                    break ;
+                }                
+            }
+            if (refCol!=null) {
+                where = where + whereRegexsTo.getCompleteOperation(i+1 ,splitedHumanRequest,refCol)+" and" ;
             }
 
-
-        }
-        // mijery hoe misy valeur ana colomne ve
-
+        }        
         
+        // mijery hoe misy valeur ana colomne ve ?
+        
+        ArrayList<String[]> ss = getWheres(connection ,humanRequest);
+        for (int i = 0; i < ss.size(); i++) {
+            where = where +" "+ ss.get(i)[0]+ "="+ss.get(i)[1]+" and"; 
+        }
+        
+        where = where.substring(0, where.lastIndexOf(" and")) ;
+
+
+        request = request +where ;
 
     }
 
@@ -207,6 +249,103 @@ public class SqlBuilder {
             colomneForGroupBy = new ArrayList<>();
             colomneForGroupBy.add(str);
         }
+    }
+
+
+
+
+
+    private ArrayList<String[]> getWheres(Connection connection , String humanRequest) throws Exception {
+        String [] splited = humanRequest.split(" ") ;
+        ArrayList<String[]> ls= new ArrayList<>();
+        for (int i = 0; i < splited.length; i++) {
+            String column = selectColumnWithValues(connection ,true,splited[i]);
+            try {
+                Field f = getClass().getDeclaredField(column) ;           
+                f.setAccessible(true);
+                if (column!=null) {
+                    String [] s = new String[2];
+                    s[0] = column ;
+                    if(f.getClass().isInstance(4))
+                        s[1] = splited[i];
+                    else s[1] ="'"+splited[i]+"'";
+                    ls.add(s);
+                }                
+            } catch (Exception e) {
+                // manaraka ftsn
+            }
+
+        }
+        return ls;
+    }
+
+    private String selectColumnWithValues(Connection connection , boolean isTransactional , String values) throws Exception{
+        try{
+            String caseWhen = getCaseWhen(values);
+            if(caseWhen.isEmpty()) return "" ;
+            String request  = "SELECT *, CASE " + caseWhen + " END AS colomne_trouvee from "+getClass().getSimpleName()+getWhereWithFields(values) ;
+            Statement st = connection.createStatement();
+            ResultSet res = st.executeQuery(request);
+            if (res.next()) {
+                return res.getString("colomne_trouvee") ;
+            }
+            return null;
+        }
+        finally{
+            if (!isTransactional) {
+                    connection.close();
+            }
+        }
+    }
+
+
+
+
+    private String getWhereWithFields(String values) {
+        Field[] fields = objFields ;
+        String [] listOfFields = objFieldsName;
+
+        String val = " WHERE" ;
+        for (int i = 0; i < listOfFields.length; i++) {
+            
+            if(fields[i].getType().isInstance(values)) {
+                try {
+                    Integer x = Integer.parseInt(values) ;
+                    val = val + " "+listOfFields[i]+" = "+x+" or ";
+                    
+                } catch (Exception e) {
+                    // TODO: handle exception
+                    val = val + " "+listOfFields[i]+" ILIKE '%"+values+"%' or ";
+                }
+            } 
+        }
+        val = val.substring(0,val.lastIndexOf(" or"));
+        return val ;
+    }
+
+
+    private String getCaseWhen(String values) {
+        if (values !=null && !values.isEmpty()) {
+            String [] listOfFields = objFieldsName;
+            Field[] fields = objFields ;
+            String val = "" ;
+            for (int i = 0; i < listOfFields.length; i++) {
+                if(fields[i].getType().isInstance(values)) {
+                    try {
+                        Integer x = Integer.parseInt(values) ;
+                        val = val + " WHEN "+listOfFields[i]+" = "+x+" then '"+listOfFields[i]+"' ";
+                        
+                    } catch (Exception e) {
+                        val = val + " WHEN "+listOfFields[i]+" ILIKE '%"+values+"%' then '"+listOfFields[i]+"' ";
+                    }
+                }                 
+             }
+            return val ;            
+        }
+        else{
+            return "";
+        }
+
     }
 
 }
