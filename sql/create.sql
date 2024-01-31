@@ -18,6 +18,12 @@ create table aggregation(
 );
 -- sum(%) ,avg(%) , min(%),max(%)
 
+create table whereregex(
+    idwhereregex serial primary key ,
+    mots text ,
+    operation text
+);
+
 insert into regrouprement  values (default ,'rapport' ,'/');
 
 
