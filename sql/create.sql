@@ -5,6 +5,15 @@ create table operation(
     operation text
 );
 
+create table regrouprement(
+    idregroupement serial primary key ,
+    mots text ,
+    operation text 
+);
+
+insert into regrouprement  values (default ,'rapport' ,'/');
+
+
 create table categorie(
     idcategorie varchar(250) primary key,
     categorie varchar(250) unique

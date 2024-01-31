@@ -3,6 +3,7 @@ package orm;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.ConnectException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -329,7 +330,23 @@ public class ORM<T> {
         return lst.toArray(new String [lst.size()]);
     }
 
+    // public String [] getAllOperation(Connection connection , boolean isTransactional, String contexte) throws Exception{
+
+    //     ResultSet res = connection.createStatement().executeQuery("select operation from operation where contexte='"+contexte+"'");   
+    //     ArrayList<String> lst = new ArrayList<>();
+    //     while (res.next()) {
+    //         lst.add(res.getString("operation")) ;
+    //     }
+    //     return lst .toArray(new String[lst.size()]) ;
+    // }
+
+    // public String findPerfectMatch(Connection connection , boolean isTransactional , String humanRequest , String contexte) throws Exception{
+    //     String [] allOperation = getAllOperation(connection, false, contexte) ;
+    //     ArrayList<String> match = 
+    // }
+
     public String formSQL (Connection connection , boolean isTransactional , String humanRequest , String context) throws Exception{
+        humanRequest = humanRequest.replaceAll("  "," ");
         try{
             String [] operations = getOperation0(connection, true, humanRequest, context) ;
             if (operations.length == 0) 
@@ -350,7 +367,7 @@ public class ORM<T> {
 
     private String formSQLWithOneOperation(Connection connection, boolean isTransactional, String humanRequest,
             String context, String operation) throws Exception {
-
+        String original = humanRequest ;
 
         String [] variableOperation = getVariableOperation(humanRequest) ;
 
@@ -364,22 +381,105 @@ public class ORM<T> {
 
         // former requete : select * from produits where dsf=dsfnjds order by variableOperation asc
 
-        String orderBy = getOrderBy(operation, variableOperation);
-
+        
         String where = formWhere(wheres) ;
+        
+        String regroupement = checkRegroupement(connection, variableOperation ,humanRequest);
+        String orderBy ="" ;
+        if (regroupement== null) {
+            orderBy= getOrderBy(operation, variableOperation);
+            
+        }
+        else{
+            orderBy =getOrderBy(operation, regroupement)  ;
+        }
+
 
         return "SELECT * FROM "+getClass().getSimpleName()+" "+where+" "+orderBy ;
 
     }
 
 
+    @SuppressWarnings("unchecked")
+    public T[] selectWithRequest(Connection connection , boolean isTransactional ,String humanRequest ,String context) throws Exception{
+
+        try{
+            String request = formSQL(connection, true, humanRequest,context);
+            System.out.println(request);
+            Statement st = connection.createStatement();
+            ResultSet res = st.executeQuery(request);
+            Field [] fields = getClass().getDeclaredFields();
+            ArrayList<T> tLists = new ArrayList<T>();
+            while (res.next()) {
+                T t = ((T)getClass().getConstructor().newInstance());
+                for (int i = 0; i < fields.length; i++) {
+                    try {
+                        Object obj = res.getObject(fields[i].getName());
+                        try {
+                            Method m = getClass().getDeclaredMethod("set"+fields[i].getName().substring(0, 1).toUpperCase()+fields[i].getName().substring(1),obj.getClass());
+                            m.invoke(t,obj);
+                        } catch (NoSuchMethodException e) {
+                            fields[i].setAccessible(true); 
+                            fields[i].set(t,obj);
+                        }
+                    } catch (Exception e) {
+                        // on s'en fout
+                        System.out.println(e);
+                        System.out.println("WARNING:"+fields[i].getName()+" column does not exist");
+                    }
+                }
+                tLists.add(t);
+            }
+
+            T[] resultArray = (T[]) Array.newInstance(getClass(), tLists.size());
+            return tLists.toArray(resultArray);
+        }finally{
+            if (!isTransactional) {
+                connection.close();
+            }
+        }
+    }
+
+
+
+    private String getOrderBy(String operation, String regroupement) {
+        return operation.replace("%", regroupement);
+    }
+
+
+    private String checkRegroupement(Connection connection , String[] variableOperation , String humanRequest) throws Exception {
+        String[] splited = humanRequest.split(" ");
+        String operation =null ;
+        for (int i = 0; i < splited.length; i++) {
+            String re = "select operation from regrouprement where mots ilike '%"+splited[i]+"%'";            
+            ResultSet r = connection.createStatement().executeQuery(re);
+            if (r.next()) {
+                operation = r.getString("operation");                
+                break ;
+            }
+        }
+        if (operation==null) {
+            return null ;
+        }
+        String end = "" ;
+
+        for (int i = 0; i < variableOperation.length; i++) {
+            end=  end + variableOperation[i]+ "/";
+        }
+        end = end.substring(0,end.lastIndexOf("/"));
+
+        return end ;
+
+    }
+
 
     private String formWhere(ArrayList<String[]> wheres) {
         if (wheres.size()!=0) {
             String x = " where " ;
             for (int i = 0; i < wheres.size(); i++) {
-                x = x +wheres.get(i)[0]+"="+wheres.get(i)[1]+" ";
+                x = x +wheres.get(i)[0]+"="+wheres.get(i)[1]+" and ";
             }
+            x= x.substring(0, x.lastIndexOf("and ")) ;
             return x; 
                 
         }
@@ -428,8 +528,8 @@ public class ORM<T> {
         String [] ss = humanRequest.split(" ");
         Field[] fields = this.getClass().getDeclaredFields() ;
         ArrayList<String> list = new ArrayList<>() ;
-        for (int i = 0; i < fields.length; i++) {
-            for (int j = 0; j < ss.length; j++) {
+        for (int j = 0; j < ss.length; j++) {
+            for (int i = 0; i < fields.length; i++) {
                 if (fields[i].getName().equalsIgnoreCase(ss[j]))list.add(ss[j]);         
             }
         }
