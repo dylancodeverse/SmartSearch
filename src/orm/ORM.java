@@ -55,7 +55,9 @@ public class ORM<T> {
 
     public String selectColumnWithValues(Connection connection , boolean isTransactional , String values) throws Exception{
         try{
-            String request  = "SELECT *, CASE " + getCaseWhen(values) + " END AS colomne_trouvee from "+getClass().getSimpleName()+getWhereWithFields(values) ;
+            String caseWhen = getCaseWhen(values);
+            if(caseWhen.isEmpty()) return "" ;
+            String request  = "SELECT *, CASE " + caseWhen + " END AS colomne_trouvee from "+getClass().getSimpleName()+getWhereWithFields(values) ;
             Statement st = connection.createStatement();
             ResultSet res = st.executeQuery(request);
             if (res.next()) {
@@ -69,30 +71,31 @@ public class ORM<T> {
             }
         }
     }
-//     SELECT
-//     id,
-//     nom,
-//     description,
-//     CASE
-//         WHEN nom ILIKE '%qualité%' THEN 'Nom'
-//         WHEN description ILIKE '%qualité%' THEN 'Description'
-//         ELSE 'Non trouvé'
-//     END AS colonne_trouvee
-// FROM produits
-// WHERE nom ILIKE '%qualité%' OR description ILIKE '%qualité%';
+// meilleur qualite 
 
+// meilleur qualite prix
+
+// meilleur rapport qualite prix
+
+// meilleur rapport  qualite 
 
     private String getWhereWithFields(String values) {
+        Field[] fields = getClass().getDeclaredFields() ;
         String [] listOfFields = getListOfFields();
 
         String val = " WHERE" ;
         for (int i = 0; i < listOfFields.length; i++) {
-            try {
-                Integer x = Integer.parseInt(values) ;
-                val = val + " "+listOfFields[i]+" = "+x+" or ";
-            } catch (Exception e) {
-                val = val + " "+listOfFields[i]+" ILIKE '%"+values+" or ";
-            }
+            
+            if(fields[i].getType().isInstance(values)) {
+                try {
+                    Integer x = Integer.parseInt(values) ;
+                    val = val + " "+listOfFields[i]+" = "+x+" or ";
+                    
+                } catch (Exception e) {
+                    // TODO: handle exception
+                    val = val + " "+listOfFields[i]+" ILIKE '%"+values+"%' or ";
+                }
+            } 
         }
         val = val.substring(0,val.lastIndexOf(" or"));
         return val ;
@@ -100,17 +103,27 @@ public class ORM<T> {
 
 
     private String getCaseWhen(String values) {
-        String [] listOfFields = getListOfFields();
-        String val = "" ;
-        for (int i = 0; i < listOfFields.length; i++) {
-            try {
-                Integer x = Integer.parseInt(values) ;
-                val = val + " WHEN "+listOfFields[i]+" = "+x+" then '"+listOfFields[i]+"' ";
-            } catch (Exception e) {
-                val = val + " WHEN "+listOfFields[i]+" ILIKE '%"+values+"'% then '"+listOfFields[i]+"' ";
-            }
+        if (values !=null && !values.isEmpty()) {
+            String [] listOfFields = getListOfFields();
+            Field[] fields = getClass().getDeclaredFields() ;
+            String val = "" ;
+            for (int i = 0; i < listOfFields.length; i++) {
+                if(fields[i].getType().isInstance(values)) {
+                    try {
+                        Integer x = Integer.parseInt(values) ;
+                        val = val + " WHEN "+listOfFields[i]+" = "+x+" then '"+listOfFields[i]+"' ";
+                        
+                    } catch (Exception e) {
+                        val = val + " WHEN "+listOfFields[i]+" ILIKE '%"+values+"%' then '"+listOfFields[i]+"' ";
+                    }
+                }                 
+             }
+            return val ;            
         }
-        return val ;
+        else{
+            return "";
+        }
+
     }
 
 
@@ -289,7 +302,7 @@ public class ORM<T> {
         try {
             Statement statement = connection.createStatement() ;
             
-            ResultSet res = statement.executeQuery("select operation from operation where operation like '%"+humanRequestSplited+"%' and contexte like like '%"+contexte+"%'");
+            ResultSet res = statement.executeQuery("select operation from operation where mots ilike '%"+humanRequestSplited+"%' and contexte ilike '%"+contexte+"%'");
             if (res.next()) {
                 x = res.getString("operation");
             }
@@ -310,28 +323,34 @@ public class ORM<T> {
         String [] splited = humanRequest.split(" ");
         ArrayList<String> lst = new ArrayList<>() ;
         for (int i = 0; i < splited.length; i++) {
-            String op = getOperation1(connection, isTransactional, humanRequest, contexte) ;
+            String op = getOperation1(connection, true, splited[i], contexte) ;
             if(op!=null) lst.add(op) ;
         }
         return lst.toArray(new String [lst.size()]);
     }
 
     public String formSQL (Connection connection , boolean isTransactional , String humanRequest , String context) throws Exception{
-        String [] operations = getOperation0(connection, isTransactional, humanRequest, context) ;
-        if (operations.length == 0) 
-            throw new Exception("Contexte a revoir") ;
-
-        else if (operations.length ==1) 
-            return formSQLWithOneOperation(connection, isTransactional ,humanRequest ,context ,operations[0]) ;
-
-        else return formSQLWithMultipleOperation(connection ,isTransactional ,humanRequest, context ,operations)
+        try{
+            String [] operations = getOperation0(connection, true, humanRequest, context) ;
+            if (operations.length == 0) 
+                throw new Exception("Contexte a revoir") ;
+    
+            else if (operations.length ==1) 
+                return formSQLWithOneOperation(connection, true ,humanRequest ,context ,operations[0]) ;
+    
+            else return formSQLWithMultipleOperation(connection ,true ,humanRequest, context ,operations);
+        }
+        finally{
+            if (!isTransactional) {
+                connection.close();
+            }
+        }
         
     }
 
     private String formSQLWithOneOperation(Connection connection, boolean isTransactional, String humanRequest,
-            String context, String operation) {
+            String context, String operation) throws Exception {
 
-        humanRequest = humanRequest.replace(operation,"") ;
 
         String [] variableOperation = getVariableOperation(humanRequest) ;
 
@@ -340,24 +359,72 @@ public class ORM<T> {
         for (int i = 0; i < variableOperation.length; i++) {
             humanRequest = humanRequest.replace(variableOperation[i],"");
         }
+        // maka ny where rehetra
+        ArrayList<String[]> wheres= getWheres(connection,humanRequest); 
 
-        ArrayList<String[]> wheres= getWheres(humanRequest); 
+        // former requete : select * from produits where dsf=dsfnjds order by variableOperation asc
+
+        String orderBy = getOrderBy(operation, variableOperation);
+
+        String where = formWhere(wheres) ;
+
+        return "SELECT * FROM "+getClass().getSimpleName()+" "+where+" "+orderBy ;
 
     }
 
 
 
-   private ArrayList<String[]> getWheres(String humanRequest) {
-        String [] splited = humanRequest.split(humanRequest) ;
+    private String formWhere(ArrayList<String[]> wheres) {
+        if (wheres.size()!=0) {
+            String x = " where " ;
+            for (int i = 0; i < wheres.size(); i++) {
+                x = x +wheres.get(i)[0]+"="+wheres.get(i)[1]+" ";
+            }
+            return x; 
+                
+        }
+        return " " ;
+    }
+
+
+    private String getOrderBy(String operation, String[] variableOperation) {
+        String x = "" ;
+        for (int i = 0; i < variableOperation.length; i++) {
+            x =x+ variableOperation[i]+",";
+        }
+        x = x.substring(0,x.lastIndexOf(","));
+        operation = operation.replace("%",x);
+        return operation ;
+
+    }
+
+
+    private ArrayList<String[]> getWheres(Connection connection , String humanRequest) throws Exception {
+        String [] splited = humanRequest.split(" ") ;
         ArrayList<String[]> ls= new ArrayList<>();
         for (int i = 0; i < splited.length; i++) {
+            String column = selectColumnWithValues(connection ,true,splited[i]);
+            try {
+                Field f = getClass().getDeclaredField(column) ;           
+                f.setAccessible(true);
+                if (column!=null) {
+                    String [] s = new String[2];
+                    s[0] = column ;
+                    if(f.getClass().isInstance(4))
+                        s[1] = splited[i];
+                    else s[1] ="'"+splited[i]+"'";
+                    ls.add(s);
+                }                
+            } catch (Exception e) {
+                // manaraka ftsn
+            }
 
         }
-        throw new UnsupportedOperationException("Unimplemented method 'getWheres'");
+        return ls;
     }
 
 
- private String[] getVariableOperation(String humanRequest) {
+    private String[] getVariableOperation(String humanRequest) {
         String [] ss = humanRequest.split(" ");
         Field[] fields = this.getClass().getDeclaredFields() ;
         ArrayList<String> list = new ArrayList<>() ;
