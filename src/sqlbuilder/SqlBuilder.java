@@ -16,6 +16,7 @@ public class SqlBuilder {
     WhereRegex[] whereRegexs ;
     ArrayList<String> colomneForGroupBy ;
     ArrayList<String> columnKnown ;
+    Sort[] sorts ;
 
     /**
      * 1 ere etape : regarder si colomne : * 
@@ -37,11 +38,28 @@ public class SqlBuilder {
         setTable(obj) ;
         // pour where
         setWhere(connection ,humanRequest);
-        // pour order by
+        // pour group by
         setGroupBy();
+        // pour order by
+        setOrderBy();
+
+
+    }
 
 
 
+    private void setOrderBy() {
+        // jerena hoe anakiray ve sa maromaro ny mots cles ana order by
+        Integer n = 0;
+        for (int i = 0; i < splitedHumanRequest.length; i++) {
+            for (int j = 0; j < fonctionAggregation.length; j++) {
+                
+            }
+        }
+
+        // raha anakiray de milamina be satria ampanarahana an'iny daolo ftsn
+
+        // raha maromaro de eo vao mijery ny a droite foana satria zay no manana signification logique
     }
 
 
@@ -121,7 +139,7 @@ public class SqlBuilder {
         splitedHumanRequest = humanRequest.split(" ");
 
         whereRegexs = WhereRegex.getAll(connection) ;
-
+        sorts = Sort.getAll(connection);
 
     }
 
@@ -314,7 +332,6 @@ public class SqlBuilder {
                     val = val + " "+listOfFields[i]+" = "+x+" or ";
                     
                 } catch (Exception e) {
-                    // TODO: handle exception
                     val = val + " "+listOfFields[i]+" ILIKE '%"+values+"%' or ";
                 }
             } 
