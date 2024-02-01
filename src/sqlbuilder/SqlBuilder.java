@@ -52,8 +52,28 @@ public class SqlBuilder {
         // jerena hoe anakiray ve sa maromaro ny mots cles ana order by
         Integer n = 0;
         for (int i = 0; i < splitedHumanRequest.length; i++) {
-            for (int j = 0; j < fonctionAggregation.length; j++) {
-                
+            for (int j = 0; j < sorts.length; j++) {
+                if (sorts[j].getMots().contains(splitedHumanRequest[i])) {
+                    n++;
+                }
+            }
+            if (n>1) {
+                break;
+            }
+        }
+        if (n>1) {
+            // mijery an'izy rehetra 
+            
+        }else{
+            // alaina alony ilay mots cles hiasa:
+            Sort s = new Sort();
+            for (int i = 0; i < splitedHumanRequest.length; i++) {
+                for (int j = 0; j < sorts.length; j++) {
+                    if (sorts[j].getMots().equals(splitedHumanRequest[i])) s = sorts[j];
+                }
+            }
+            for (int i = 0; i < columnKnown.size(); i++) {
+                request = request+" "+s.formSQL(columnKnown);
             }
         }
 

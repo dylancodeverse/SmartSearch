@@ -32,5 +32,21 @@ public class Sort {
     }
     public void setOperation(String operation) {
         this.operation = operation;
+    }
+
+
+    public String formSQL(ArrayList<String> columnKnown) {
+        String end ="order by";
+        
+        for (int i = 0; i < columnKnown.size(); i++) {
+            String pref = operation.replace("order by", "");
+
+            end  = end +" "+ pref.replace("%", columnKnown.get(i))+",";
+                    
+        }
+        end=  end .substring(0, end.lastIndexOf(","))  ;
+
+        return end ;
+
     }    
 }
