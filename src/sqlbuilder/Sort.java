@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 
+import javax.security.auth.Subject;
+
 public class Sort {
     String mots ;
     String operation ;
@@ -48,5 +50,16 @@ public class Sort {
 
         return end ;
 
+    }
+
+
+    public String formSQL(String substring) {
+        String end ="order by";
+
+        String pref = operation.replace("order by", "");
+
+        end  = end +" "+ pref.replace("%", substring);
+
+        return end; 
     }    
 }

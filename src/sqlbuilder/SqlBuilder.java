@@ -17,6 +17,8 @@ public class SqlBuilder {
     ArrayList<String> colomneForGroupBy ;
     ArrayList<String> columnKnown ;
     Sort[] sorts ;
+    String tableName ;
+    Object obj ;
 
     /**
      * 1 ere etape : regarder si colomne : * 
@@ -50,6 +52,7 @@ public class SqlBuilder {
 
     private void setOrderBy() {
         // jerena hoe anakiray ve sa maromaro ny mots cles ana order by
+        
         Integer n = 0;
         for (int i = 0; i < splitedHumanRequest.length; i++) {
             for (int j = 0; j < sorts.length; j++) {
@@ -64,17 +67,28 @@ public class SqlBuilder {
         if (n>1) {
             // mijery an'izy rehetra 
             
-        }else{
+        }else if (n==1){
             // alaina alony ilay mots cles hiasa:
             Sort s = new Sort();
             for (int i = 0; i < splitedHumanRequest.length; i++) {
                 for (int j = 0; j < sorts.length; j++) {
-                    if (sorts[j].getMots().equals(splitedHumanRequest[i])) s = sorts[j];
+                    if (sorts[j].getMots().equals(splitedHumanRequest[i])) {
+                        s = sorts[j] ;
+                        break;
+                    }
                 }
             }
-            for (int i = 0; i < columnKnown.size(); i++) {
+            if (!request.substring(7, request.lastIndexOf("FROM")).contains("*")) {
+                request = request+" "+s.formSQL(request.substring(7, request.lastIndexOf("FROM")));
+                
+            }else{
                 request = request+" "+s.formSQL(columnKnown);
             }
+
+
+        }
+        else{
+            return ;
         }
 
         // raha anakiray de milamina be satria ampanarahana an'iny daolo ftsn
@@ -111,10 +125,17 @@ public class SqlBuilder {
                     // mila alaina ny colomne alohan'iny :
                     try {
                         for (int j2 = i-1; j2 >= 0; j2--) {
-                            if (objFieldsName[j].equals(splitedHumanRequest[j2])) {
-                                refCol = objFieldsName[j] ;
-                                break ;
-                            }                            
+                            for (int k = 0; k < objFieldsName.length; k++) {
+                                if (objFieldsName[k].equals(splitedHumanRequest[j2])) {
+                                    refCol = objFieldsName[k] ;
+                                    break ;
+                                }                            
+
+                                
+                            }
+                            if (refCol!=null) {
+                                break;
+                            }
                         }
                         
                     } catch (Exception e) {
@@ -135,8 +156,11 @@ public class SqlBuilder {
         for (int i = 0; i < ss.size(); i++) {
             where = where +" "+ ss.get(i)[0]+ "="+ss.get(i)[1]+" and"; 
         }
-        
-        where = where.substring(0, where.lastIndexOf(" and")) ;
+        try {
+            where = where.substring(0, where.lastIndexOf(" and")) ;
+        } catch (Exception e) {
+            where="";
+        }        
 
 
         request = request +where ;
@@ -160,7 +184,8 @@ public class SqlBuilder {
 
         whereRegexs = WhereRegex.getAll(connection) ;
         sorts = Sort.getAll(connection);
-
+        tableName = obj.getClass().getSimpleName().toLowerCase();
+        this.obj = obj;
     }
 
 
@@ -183,22 +208,29 @@ public class SqlBuilder {
 
             StringBuilder str = new StringBuilder();
             for (int i = 0; i < splitedHumanRequest.length; i++) {
+                boolean nahita =false;
                 // jerena hoe nom de colomne ve sa fonction d'aggregation:
                 for (int j = 0; j < objFieldsName.length; j++) {
                     if (objFieldsName[j].equals(splitedHumanRequest[i])) {
                         str.append(splitedHumanRequest[i]+" ");
+                        nahita = true ;
                         break ;
                     }                    
                 }
                 for (int j = 0; j < fonctionAggregation.length; j++) {
                     if (fonctionAggregation[j].getMots().equals(splitedHumanRequest[i])) {
                         str.append(splitedHumanRequest[i]+" ");
+                        nahita = true ;
+
                         break ;
                     }
                 }
                 if (str.length()!=0) {
                     if (str.charAt(str.length()-1)!='%' ) {
-                        str.append("%"); // misy separateur manelanelana anzareo 
+                        if (!nahita) {
+                            str.append("%"); // misy separateur manelanelana anzareo 
+                            
+                        }
                                         // manova ny signification an ilay phrase vao misy separateur
                     }
                     // tsy mi compte ny surplus de separateur
@@ -209,17 +241,41 @@ public class SqlBuilder {
             request = "SELECT ";
             for (int i = 0; i < splitedStr.length; i++) {
                 request = request + formColomneAvecAggregation(splitedStr[i])+",";
+
             }
             request = request.substring(0,request.lastIndexOf(","));            
         }
         else{
             request = "SELECT * ";
+            for (int i = 0; i < splitedHumanRequest.length; i++) {
+                // jerena hoe nom de colomne ve sa fonction d'aggregation:
+                for (int j = 0; j < objFieldsName.length; j++) {
+                    if (objFieldsName[j].equals(splitedHumanRequest[i])) {
+                        setColumnKnown(objFieldsName[j]);
+                        break ;
+                    }                    
+                }
+            }
         }
  
 
     }
 
+    private void setColumnKnown(String string) {
+        try {
+            columnKnown.add(string);
+        } catch (Exception e) {
+            columnKnown = new ArrayList<>();
+            columnKnown.add(string);
+        }
+    }
+
+
+
     private String formColomneAvecAggregation(String toreplace) {
+        toreplace = toreplace.trim() ;
+        setColumnKnown(toreplace);
+
         String[] splited = toreplace.split(" ");        
         if(splited.length==1){
             setColumnsGroupBy(toreplace);
@@ -234,6 +290,7 @@ public class SqlBuilder {
                 return aggregation.replace("%",splited[1]);
             }
         }
+
     }
 
 
@@ -270,6 +327,7 @@ public class SqlBuilder {
     private String format(String humanRequest) {
         humanRequest = humanRequest.trim();
         humanRequest = humanRequest.stripTrailing();
+        humanRequest = humanRequest.replaceAll("  "," ");
         return humanRequest ;
     }
     public String getRequest() {
@@ -299,7 +357,7 @@ public class SqlBuilder {
         for (int i = 0; i < splited.length; i++) {
             String column = selectColumnWithValues(connection ,true,splited[i]);
             try {
-                Field f = getClass().getDeclaredField(column) ;           
+                Field f = obj.getClass().getDeclaredField(column) ;          
                 f.setAccessible(true);
                 if (column!=null) {
                     String [] s = new String[2];
@@ -321,7 +379,7 @@ public class SqlBuilder {
         try{
             String caseWhen = getCaseWhen(values);
             if(caseWhen.isEmpty()) return "" ;
-            String request  = "SELECT *, CASE " + caseWhen + " END AS colomne_trouvee from "+getClass().getSimpleName()+getWhereWithFields(values) ;
+            String request  = "SELECT *, CASE " + caseWhen + " END AS colomne_trouvee from "+tableName+getWhereWithFields(values) ;
             Statement st = connection.createStatement();
             ResultSet res = st.executeQuery(request);
             if (res.next()) {
@@ -346,15 +404,23 @@ public class SqlBuilder {
         String val = " WHERE" ;
         for (int i = 0; i < listOfFields.length; i++) {
             
-            if(fields[i].getType().isInstance(values)) {
-                try {
-                    Integer x = Integer.parseInt(values) ;
-                    val = val + " "+listOfFields[i]+" = "+x+" or ";
+            // if(fields[i].getType().isInstance(values)) {
+            //     try {
+            //         Integer x = Integer.parseInt(values) ;
+            //         val = val + " "+listOfFields[i]+" = "+x+" or ";
                     
-                } catch (Exception e) {
+            //     } catch (Exception e) {
+            //         val = val + " "+listOfFields[i]+" ILIKE '%"+values+"%' or ";
+            //     }
+            // } 
+            if(fields[i].getType().isInstance(values)) {
+                if (fields[i].getType().isInstance(0)) {
+                    val = val + " "+listOfFields[i]+" = "+values+" or ";
+                }
+                else{
                     val = val + " "+listOfFields[i]+" ILIKE '%"+values+"%' or ";
                 }
-            } 
+            }
         }
         val = val.substring(0,val.lastIndexOf(" or"));
         return val ;
@@ -367,15 +433,24 @@ public class SqlBuilder {
             Field[] fields = objFields ;
             String val = "" ;
             for (int i = 0; i < listOfFields.length; i++) {
-                if(fields[i].getType().isInstance(values)) {
-                    try {
-                        Integer x = Integer.parseInt(values) ;
-                        val = val + " WHEN "+listOfFields[i]+" = "+x+" then '"+listOfFields[i]+"' ";
+                // if(fields[i].getType().isInstance(values)) {
+                //     try {
+                //         Integer x = Integer.parseInt(values) ;
+                //         val = val + " WHEN "+listOfFields[i]+" = "+x+" then '"+listOfFields[i]+"' ";
                         
-                    } catch (Exception e) {
+                //     } catch (Exception e) {
+                //         val = val + " WHEN "+listOfFields[i]+" ILIKE '%"+values+"%' then '"+listOfFields[i]+"' ";
+                //     }
+                // }                 
+                if(fields[i].getType().isInstance(values)) {
+                    if (fields[i].getType().isInstance(0)) {
+                        val = val + " WHEN "+listOfFields[i]+" = "+values+" then '"+listOfFields[i]+"' ";
+                    }
+                    else{
                         val = val + " WHEN "+listOfFields[i]+" ILIKE '%"+values+"%' then '"+listOfFields[i]+"' ";
                     }
-                }                 
+                    
+                }
              }
             return val ;            
         }

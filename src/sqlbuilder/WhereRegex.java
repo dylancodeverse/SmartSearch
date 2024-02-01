@@ -16,8 +16,10 @@ public class WhereRegex {
         ArrayList<WhereRegex> wjRegexs = new ArrayList<>();
         while (re.next()) {
             WhereRegex x= new WhereRegex() ;
-            x.setRegex(re.getString("mots"));                 
+            x.setRegex(re.getString("regex"));                 
             x.setOperation(re.getString("operation"));
+            x.nMatcher= re.getInt("nmatcher");
+            x.type = re.getString("type");
             wjRegexs.add(x);
         }
         return wjRegexs.toArray(new WhereRegex[wjRegexs.size()]);
@@ -46,9 +48,19 @@ public class WhereRegex {
 
         if (type.equals("INT")) {
             Integer[] x = new Integer[nMatcher]; 
+            int a = 0 ;
             for (int j = 0; j < nMatcher; j++) {
-                x[j] = Integer.parseInt(copiedArray[j]);
-                end = end.replace("INT",x[j]+"" );
+                for (int j2 = a; j2 < splitedHumanRequest.length; j2++) {
+                    try{
+                        x[j] = Integer.parseInt(copiedArray[j2]);
+                        end = end.replace("INT"+j,x[j]+"" );
+                        a++;
+                        break;
+
+                    }catch(Exception e){
+                    }
+                        
+                }
             }
             end = end.replaceAll("column", column);
 
