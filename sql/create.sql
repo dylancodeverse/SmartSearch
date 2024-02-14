@@ -50,3 +50,9 @@ insert into operation values(default, 'meilleur' ,'client' ,'order by % asc');
 
 insert into produits values (default ,'coca',534,'boisson',9);
 insert into produits values (default ,'fanta' , 100 , 'boisson', 200);
+
+
+create table ordre(
+    nomcolomne text ,
+    ordre text   
+);

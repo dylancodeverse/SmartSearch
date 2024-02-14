@@ -10,6 +10,9 @@ public class Sort {
     String mots ;
     String operation ;
 
+
+
+
     public static Sort [] getAll(Connection c ) throws Exception{
         ResultSet re= c.createStatement().executeQuery("select * from sort") ;
         ArrayList<Sort> list = new ArrayList<>();
@@ -37,13 +40,31 @@ public class Sort {
     }
 
 
-    public String formSQL(ArrayList<String> columnKnown) {
+    public String formSQL(ArrayList<String> columnKnown ,Connection connection , String definition) throws Exception {
         String end ="order by";
-        
+        Ordre [] ordres = Ordre.getAll(connection);        
+
         for (int i = 0; i < columnKnown.size(); i++) {
             String pref = operation.replace("order by", "");
-
+            // System.out.println(columnKnown.get(i));
             end  = end +" "+ pref.replace("%", columnKnown.get(i))+",";
+            boolean trouvee = false;
+            String newOrdrer = "";
+            for (int j = 0; j < ordres.length; j++) {
+                trouvee= ordres[j].getNomColomne().equalsIgnoreCase(columnKnown.get(i)) && ordres[j].getDefinition().equalsIgnoreCase(definition);
+
+                if (trouvee) {
+                    newOrdrer = ordres[j].getOrdre() ;
+                    break ;
+                }                
+            }
+            if (trouvee) {
+                if (end.contains("asc")) {
+                    end = end.replace("asc", newOrdrer);
+                }else{
+                    end = end.replace("desc", newOrdrer);
+                }
+            }
                     
         }
         end=  end .substring(0, end.lastIndexOf(","))  ;
@@ -53,13 +74,20 @@ public class Sort {
     }
 
 
-    public String formSQL(String substring) {
-        String end ="order by";
+    public String formSQL(String substring, Connection connection, String definition) throws Exception {
+        String [] x = substring.split(",");
+        ArrayList<String> lst = new ArrayList<>();
+        for (int i = 0; i < x.length; i++) {
+            lst.add(x[i]);
+        }
+        return formSQL(lst, connection ,definition);
 
-        String pref = operation.replace("order by", "");
+        // String end ="order by";
 
-        end  = end +" "+ pref.replace("%", substring);
+        // String pref = operation.replace("order by", "");
 
-        return end; 
+        // end  = end +" "+ pref.replace("%", substring);
+
+        // return end; 
     }    
 }

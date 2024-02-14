@@ -12,6 +12,7 @@ public class NewProduit {
         Connection c = DriverManager.getConnection("jdbc:postgresql://localhost:5432/recherche","postgres","post");
         String sqlQuery = (new SqlBuilder(c, phrase , new Produits()).getRequest());
 
+        System.out.println(sqlQuery);
         // Exécuter la requête SQL
         try (PreparedStatement statement = c.prepareStatement(sqlQuery)) {
             ResultSet resultSet = statement.executeQuery();

@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import obj.NewProduit;
 import obj.Produits;
 import sqlbuilder.SqlBuilder;
 
@@ -28,7 +29,7 @@ public class App {
 
         // System.out.println(new SqlBuilder(c, "prix inferieur 5", new Produits()).getRequest());
 
-
+        NewProduit.getHTML("meilleur prix");
 
 
     }

@@ -43,14 +43,33 @@ public class SqlBuilder {
         // pour group by
         setGroupBy();
         // pour order by
-        setOrderBy();
+        setOrderBy(connection);
+
+        setLimit(humanRequest);
 
 
     }
 
 
 
-    private void setOrderBy() {
+    private void setLimit(String humanRequest) {
+        if (humanRequest.contains("top ")) {
+
+            request = request+" limit ";
+
+            String [] splited = humanRequest.split("top") ;
+    
+            String x = splited[1].split(" ")[0];
+    
+            request = request + x;
+        }
+
+
+    }
+
+
+
+    private void setOrderBy(Connection connection) throws Exception {
         // jerena hoe anakiray ve sa maromaro ny mots cles ana order by
         
         Integer n = 0;
@@ -70,19 +89,21 @@ public class SqlBuilder {
         }else if (n==1){
             // alaina alony ilay mots cles hiasa:
             Sort s = new Sort();
+            String definition ="";
             for (int i = 0; i < splitedHumanRequest.length; i++) {
                 for (int j = 0; j < sorts.length; j++) {
                     if (sorts[j].getMots().equals(splitedHumanRequest[i])) {
                         s = sorts[j] ;
+                        definition = sorts[j].getMots();
                         break;
                     }
                 }
             }
             if (!request.substring(7, request.lastIndexOf("FROM")).contains("*")) {
-                request = request+" "+s.formSQL(request.substring(7, request.lastIndexOf("FROM")));
+                request = request+" "+s.formSQL(request.substring(7, request.lastIndexOf("FROM")), connection ,definition);
                 
             }else{
-                request = request+" "+s.formSQL(columnKnown);
+                request = request+" "+s.formSQL(columnKnown, connection,definition);
             }
 
 
